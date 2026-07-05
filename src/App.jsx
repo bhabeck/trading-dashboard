@@ -269,12 +269,28 @@ function WatchlistPage({ signals, candles, onSelect, onAdd, onRemove, loading })
   const [showAdd, setShowAdd] = useState(false);
   const [newSymbol, setNewSymbol] = useState('');
   const [newType, setNewType] = useState('stock');
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState('');
+  const [addSuccess, setAddSuccess] = useState('');
 
   const handleAdd = async () => {
-    if (!newSymbol.trim()) return;
-    await onAdd(newSymbol.trim().toUpperCase(), newType);
-    setNewSymbol('');
-    setShowAdd(false);
+    const sym = newSymbol.trim().toUpperCase();
+    if (!sym) return;
+    setAdding(true);
+    setAddError('');
+    setAddSuccess('');
+    const result = await onAdd(sym, newType);
+    setAdding(false);
+    if (result?.error) {
+      setAddError(result.error);
+    } else {
+      setAddSuccess(`${sym} added — scanning now, will appear shortly`);
+      setNewSymbol('');
+      setTimeout(() => {
+        setShowAdd(false);
+        setAddSuccess('');
+      }, 2000);
+    }
   };
 
   return (
@@ -293,22 +309,36 @@ function WatchlistPage({ signals, candles, onSelect, onAdd, onRemove, loading })
       </div>
 
       {showAdd && (
-        <div className="card" style={{ marginBottom: 20, display: 'flex', gap: 10, alignItems: 'center' }}>
-          <Search size={16} color="#787b86" />
-          <input
-            className="input-search" value={newSymbol}
-            onChange={(e) => setNewSymbol(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
-            placeholder="Enter ticker (e.g. AAPL, ETH/USD)..."
-            autoFocus
-          />
-          <select className="select" value={newType} onChange={(e) => setNewType(e.target.value)}>
-            <option value="stock">Stock</option>
-            <option value="crypto">Crypto</option>
-          </select>
-          <button className="btn-primary" style={{ padding: '6px 14px', fontSize: 12 }} onClick={handleAdd}>
-            Add
-          </button>
+        <div className="card" style={{ marginBottom: 20 }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <Search size={16} color="#787b86" />
+            <input
+              className="input-search" value={newSymbol}
+              onChange={(e) => { setNewSymbol(e.target.value); setAddError(''); setAddSuccess(''); }}
+              onKeyDown={(e) => e.key === 'Enter' && !adding && handleAdd()}
+              placeholder="Enter ticker (e.g. AAPL, BTC/USD)..."
+              autoFocus
+              disabled={adding}
+            />
+            <select className="select" value={newType} onChange={(e) => setNewType(e.target.value)} disabled={adding}>
+              <option value="stock">Stock</option>
+              <option value="crypto">Crypto</option>
+            </select>
+            <button
+              className="btn-primary"
+              style={{ padding: '6px 14px', fontSize: 12, minWidth: 64 }}
+              onClick={handleAdd}
+              disabled={adding}
+            >
+              {adding ? <Loader size={13} className="spinner" /> : 'Add'}
+            </button>
+          </div>
+          {addError && (
+            <p style={{ color: '#ef5350', fontSize: 12, margin: '8px 0 0' }}>{addError}</p>
+          )}
+          {addSuccess && (
+            <p style={{ color: '#26a69a', fontSize: 12, margin: '8px 0 0' }}>✓ {addSuccess}</p>
+          )}
         </div>
       )}
 
@@ -878,25 +908,24 @@ export default function App() {
   const handleAdd = async (symbol, type) => {
     // Check locally first before hitting the API
     if (watchlist.some((a) => a.symbol === symbol.toUpperCase())) {
-      alert(`${symbol} is already in your watchlist`);
-      return;
+      return { error: `${symbol} is already in your watchlist` };
     }
     try {
       await api.addToWatchlist(symbol, type);
       await refresh();
+      return { success: true };
     } catch (err) {
       if (err.message.includes('409')) {
-        alert(`${symbol} is already in your watchlist`);
+        return { error: `${symbol} is already in your watchlist` };
       } else if (err.message.includes('400')) {
-        alert(`Invalid ticker symbol — check the format (e.g. AAPL, BTC/USD)`);
+        return { error: `Invalid ticker — check the format (e.g. AAPL, BTC/USD)` };
       } else {
-        alert(`Failed to add ${symbol} — please try again`);
+        return { error: `Failed to add ${symbol} — please try again` };
       }
     }
   };
 
   const handleRemove = async (symbol) => {
-    if (!confirm(`Remove ${symbol} from watchlist?`)) return;
     try {
       await api.removeFromWatchlist(symbol);
       await refresh();
