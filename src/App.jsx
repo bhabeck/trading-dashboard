@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { createChart } from 'lightweight-charts';
 import * as api from './api';
-import { POLL_INTERVAL } from './config';
+import { POLL_INTERVAL, DASHBOARD_PASSWORD } from './config';
 
 // ═══════════════════════════════════════════════
 //  HELPERS
@@ -244,6 +244,7 @@ function SparkLine({ candles = [], color = '#26a69a' }) {
     <div style={{ height: 48 }}>
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={data}>
+          <YAxis domain={['dataMin', 'dataMax']} hide={true} />
           <defs>
             <linearGradient id={`sp-${color.replace('#', '')}`} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={color} stopOpacity={0.3} />
@@ -813,6 +814,11 @@ const NAV_ITEMS = [
 ];
 
 export default function App() {
+  const [authenticated, setAuthenticated] = useState(() => {
+    return sessionStorage.getItem('trading_auth') === 'true';
+  });
+  const [passwordInput, setPasswordInput] = useState('');
+  const [passwordError, setPasswordError] = useState(false);
   const [page, setPage] = useState('watchlist');
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [signals, setSignals] = useState([]);
@@ -820,6 +826,16 @@ export default function App() {
   const [candles, setCandles] = useState({});
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  const handleLogin = () => {
+    if (passwordInput === DASHBOARD_PASSWORD) {
+      sessionStorage.setItem('trading_auth', 'true');
+      setAuthenticated(true);
+      setPasswordError(false);
+    } else {
+      setPasswordError(true);
+    }
+  };
 
   // ── Fetch signals + watchlist ──
   const refresh = useCallback(async () => {
@@ -882,6 +898,63 @@ export default function App() {
     setSelectedAsset(symbol);
     setPage('detail');
   };
+
+  // ── Password Gate ──
+  if (DASHBOARD_PASSWORD && !authenticated) {
+    return (
+      <div style={{
+        minHeight: '100vh', background: '#0b0e17', display: 'flex',
+        alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-sans)',
+      }}>
+        <div style={{
+          background: '#131722', borderRadius: 12, padding: 40, width: 360,
+          border: '1px solid #2a2e39', textAlign: 'center',
+        }}>
+          <div style={{
+            width: 48, height: 48, borderRadius: 10,
+            background: 'linear-gradient(135deg, #2962ff, #26a69a)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            margin: '0 auto 20px', fontSize: 22, fontWeight: 900, color: '#fff',
+          }}>H</div>
+          <h1 style={{ color: '#d1d4dc', fontSize: 20, fontWeight: 700, margin: '0 0 6px' }}>
+            Trading Dashboard
+          </h1>
+          <p style={{ color: '#787b86', fontSize: 13, margin: '0 0 24px' }}>
+            Enter password to continue
+          </p>
+          <input
+            type="password"
+            value={passwordInput}
+            onChange={(e) => { setPasswordInput(e.target.value); setPasswordError(false); }}
+            onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+            placeholder="Password"
+            autoFocus
+            style={{
+              width: '100%', boxSizing: 'border-box', background: '#1e222d',
+              color: '#d1d4dc', border: `1px solid ${passwordError ? '#ef5350' : '#2a2e39'}`,
+              borderRadius: 6, padding: '12px 14px', fontSize: 14,
+              outline: 'none', marginBottom: 12, fontFamily: 'var(--font-sans)',
+            }}
+          />
+          {passwordError && (
+            <p style={{ color: '#ef5350', fontSize: 12, margin: '0 0 12px' }}>
+              Incorrect password
+            </p>
+          )}
+          <button
+            onClick={handleLogin}
+            style={{
+              width: '100%', background: '#2962ff', color: '#fff', border: 'none',
+              borderRadius: 6, padding: '12px', fontSize: 14, fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            Sign In
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="app-layout">
