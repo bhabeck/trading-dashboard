@@ -876,11 +876,22 @@ export default function App() {
 
   // ── Watchlist actions ──
   const handleAdd = async (symbol, type) => {
+    // Check locally first before hitting the API
+    if (watchlist.some((a) => a.symbol === symbol.toUpperCase())) {
+      alert(`${symbol} is already in your watchlist`);
+      return;
+    }
     try {
       await api.addToWatchlist(symbol, type);
       await refresh();
     } catch (err) {
-      alert(`Failed to add ${symbol}: ${err.message}`);
+      if (err.message.includes('409')) {
+        alert(`${symbol} is already in your watchlist`);
+      } else if (err.message.includes('400')) {
+        alert(`Invalid ticker symbol — check the format (e.g. AAPL, BTC/USD)`);
+      } else {
+        alert(`Failed to add ${symbol} — please try again`);
+      }
     }
   };
 
@@ -890,7 +901,7 @@ export default function App() {
       await api.removeFromWatchlist(symbol);
       await refresh();
     } catch (err) {
-      alert(`Failed to remove: ${err.message}`);
+      alert(`Failed to remove ${symbol} — please try again`);
     }
   };
 
